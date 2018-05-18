@@ -2,24 +2,25 @@
 
 namespace Illuminate\Queue\Jobs;
 
-use Pheanstalk\Pheanstalk;
 use Illuminate\Container\Container;
-use Pheanstalk\Job as PheanstalkJob;
 use Illuminate\Contracts\Queue\Job as JobContract;
+use Beanstalk\Job;
+use Beanstalk\Pool;
+use Illuminate\Queue\Connectors\BeanstalkdConnector;
 
 class BeanstalkdJob extends Job implements JobContract
 {
     /**
-     * The Pheanstalk instance.
+     * The pHp-Beanstalk instance.
      *
-     * @var \Pheanstalk\Pheanstalk
+     * @var \Beanstalk\Pool
      */
-    protected $pheanstalk;
+    protected $pool;
 
     /**
-     * The Pheanstalk job instance.
+     * The Beanstalk job instance.
      *
-     * @var \Pheanstalk\Job
+     * @var \Beanstalk\Job
      */
     protected $job;
 
@@ -27,20 +28,20 @@ class BeanstalkdJob extends Job implements JobContract
      * Create a new job instance.
      *
      * @param  \Illuminate\Container\Container  $container
-     * @param  \Pheanstalk\Pheanstalk  $pheanstalk
-     * @param  \Pheanstalk\Job  $job
+     * @param  \Beanstalk\Pool  $pool
+     * @param  \Beanstalk\Job  $job
      * @param  string  $queue
      * @return void
      */
     public function __construct(Container $container,
-                                Pheanstalk $pheanstalk,
-                                PheanstalkJob $job,
+                                Pool $pool,
+                                Job $job,
                                 $queue)
     {
         $this->job = $job;
         $this->queue = $queue;
         $this->container = $container;
-        $this->pheanstalk = $pheanstalk;
+        $this->pool = $pool;
     }
 
     /**
@@ -72,7 +73,7 @@ class BeanstalkdJob extends Job implements JobContract
     {
         parent::delete();
 
-        $this->pheanstalk->delete($this->job);
+        $this->job->delete();
     }
 
     /**
@@ -81,13 +82,11 @@ class BeanstalkdJob extends Job implements JobContract
      * @param  int   $delay
      * @return void
      */
-    public function release($delay = 0)
+    public function release($delay = 0, $priority = BeanstalkdConnector::DEFAULT_PRIORITY)
     {
         parent::release($delay);
 
-        $priority = Pheanstalk::DEFAULT_PRIORITY;
-
-        $this->pheanstalk->release($this->job, $priority, $delay);
+        $this->job->release($delay, $priority);
     }
 
     /**
@@ -95,11 +94,11 @@ class BeanstalkdJob extends Job implements JobContract
      *
      * @return void
      */
-    public function bury()
+    public function bury($priority = 2048)
     {
         parent::release();
 
-        $this->pheanstalk->bury($this->job);
+        $this->job->bury();
     }
 
     /**
@@ -109,9 +108,8 @@ class BeanstalkdJob extends Job implements JobContract
      */
     public function attempts()
     {
-        $stats = $this->pheanstalk->statsJob($this->job);
-
-        return (int) $stats->reserves;
+        $stats = $this->job->stats();
+        return (int) $stats->getStat('reserves');
     }
 
     /**
@@ -135,22 +133,40 @@ class BeanstalkdJob extends Job implements JobContract
     }
 
     /**
+     * Get the underlying Beanstalk\Pool instance.
+     * 
+     * @return \Beanstalk\Job
+     */
+    public function getPool()
+    {
+        return $this->pool;
+    }
+
+    /**
+     * Get the underlying Beanstalk\Job instance.
+     * 
+     * @return \Beanstalk\Job
+     */
+    public function getJob()
+    {
+        return $this->job;
+    }
+
+    /**
      * Get the underlying Pheanstalk instance.
-     *
-     * @return \Pheanstalk\Pheanstalk
+     * @DEPRECATED
      */
     public function getPheanstalk()
     {
-        return $this->pheanstalk;
+        throw new DeprecatedException('Pheanstalk is not longer used');
     }
 
     /**
      * Get the underlying Pheanstalk job.
-     *
-     * @return \Pheanstalk\Job
+     * @DEPRECATED
      */
     public function getPheanstalkJob()
     {
-        return $this->job;
+        throw new DeprecatedException('Pheanstalk is not longer used anymore');
     }
 }

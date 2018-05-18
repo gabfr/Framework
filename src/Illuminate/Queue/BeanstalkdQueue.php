@@ -2,19 +2,21 @@
 
 namespace Illuminate\Queue;
 
-use Pheanstalk\Pheanstalk;
-use Pheanstalk\Job as PheanstalkJob;
 use Illuminate\Queue\Jobs\BeanstalkdJob;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
+use Beanstalk\Pool;
+use Illuminate\Queue\Connectors\BeanstalkdConnector;
+use Psy\Exception\DeprecatedException;
+use Beanstalk\Job;
 
 class BeanstalkdQueue extends Queue implements QueueContract
 {
     /**
-     * The Pheanstalk instance.
+     * The \Beanstalk\Pool instance.
      *
-     * @var \Pheanstalk\Pheanstalk
+     * @var \Beanstalk\Pool
      */
-    protected $pheanstalk;
+    protected $pool;
 
     /**
      * The name of the default tube.
@@ -33,16 +35,16 @@ class BeanstalkdQueue extends Queue implements QueueContract
     /**
      * Create a new Beanstalkd queue instance.
      *
-     * @param  \Pheanstalk\Pheanstalk  $pheanstalk
+     * @param  \Beanstalk\Pool  $pool
      * @param  string  $default
      * @param  int  $timeToRun
      * @return void
      */
-    public function __construct(Pheanstalk $pheanstalk, $default, $timeToRun)
+    public function __construct(Pool $pool, $default, $timeToRun)
     {
         $this->default = $default;
         $this->timeToRun = $timeToRun;
-        $this->pheanstalk = $pheanstalk;
+        $this->pool = $pool;
     }
 
     /**
@@ -68,8 +70,8 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function pushRaw($payload, $queue = null, array $options = [])
     {
-        return $this->pheanstalk->useTube($this->getQueue($queue))->put(
-            $payload, Pheanstalk::DEFAULT_PRIORITY, Pheanstalk::DEFAULT_DELAY, $this->timeToRun
+        return $this->pool->useTube($this->getQueue($queue))->put(
+            $payload, BeanstalkdConnector::DEFAULT_PRIORITY, BeanstalkdConnector::DEFAULT_DELAY, $this->timeToRun
         );
     }
 
@@ -86,9 +88,9 @@ class BeanstalkdQueue extends Queue implements QueueContract
     {
         $payload = $this->createPayload($job, $data);
 
-        $pheanstalk = $this->pheanstalk->useTube($this->getQueue($queue));
+        $pool = $this->pool->useTube($this->getQueue($queue));
 
-        return $pheanstalk->put($payload, Pheanstalk::DEFAULT_PRIORITY, $this->getSeconds($delay), $this->timeToRun);
+        return $pool->put($payload, BeanstalkdConnector::DEFAULT_PRIORITY, $this->getSeconds($delay), $this->timeToRun);
     }
 
     /**
@@ -101,11 +103,31 @@ class BeanstalkdQueue extends Queue implements QueueContract
     {
         $queue = $this->getQueue($queue);
 
-        $job = $this->pheanstalk->watchOnly($queue)->reserve(0);
+        $job = $this->watchOnly($queue)->reserve(0);
 
-        if ($job instanceof PheanstalkJob) {
-            return new BeanstalkdJob($this->container, $this->pheanstalk, $job, $queue);
+        if ($job instanceof Job) {
+            return new BeanstalkdJob($this->container, $this->pool, $job, $queue);
         }
+    }
+
+    /**
+     * Watch the specified $queue and ignore all other queues
+     * 
+     * @param string $queue
+     * @return \Beanstalk\Pool
+     */
+    protected function watchOnly($queue)
+    {
+        $this->pool->watch($queue);
+
+        $allTubes = $this->pool->listTubes();
+        foreach ($allTubes as $tubeQueue) {
+            if ($tubeQueue != $queue) {
+                $this->pool->ignoreTube($tubeQueue);
+            }
+        }
+
+        return $this->pool;
     }
 
     /**
@@ -117,7 +139,16 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function deleteMessage($queue, $id)
     {
-        $this->pheanstalk->useTube($this->getQueue($queue))->delete($id);
+        $queue = $this->getQueue($queue);
+        
+        foreach ($this->pool->getConnections() as $connection) {
+            // Try to delete the job if exists
+            try {
+                $connection->useTube($queue)->delete($id);
+            } catch (\Exception $exception) {
+                Log::info('[' . __CLASS__ . '] Job not found: ' . $exception->getMessage());
+            }
+        }
     }
 
     /**
@@ -138,6 +169,6 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function getPheanstalk()
     {
-        return $this->pheanstalk;
+        throw new DeprecatedException('Pheanstalk is not longer used');
     }
 }
