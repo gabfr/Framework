@@ -1,6 +1,7 @@
 <?php
 
 use Mockery as m;
+use Illuminate\Queue\Connectors\BeanstalkdConnector;
 
 class QueueBeanstalkdJobTest extends PHPUnit_Framework_TestCase
 {
@@ -12,7 +13,7 @@ class QueueBeanstalkdJobTest extends PHPUnit_Framework_TestCase
     public function testFireProperlyCallsTheJobHandler()
     {
         $job = $this->getJob();
-        $job->getPool()->shouldReceive('getData')->once()->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
+        $job->getJob()->shouldReceive('getData')->once()->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
         $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock('StdClass'));
         $handler->shouldReceive('fire')->once()->with($job, ['data']);
 
@@ -22,7 +23,7 @@ class QueueBeanstalkdJobTest extends PHPUnit_Framework_TestCase
     public function testFailedProperlyCallsTheJobHandler()
     {
         $job = $this->getJob();
-        $job->getPool()->shouldReceive('getData')->once()->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
+        $job->getJob()->shouldReceive('getData')->once()->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
         $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock('BeanstalkdJobTestFailedTest'));
         $handler->shouldReceive('failed')->once()->with(['data']);
 
@@ -32,7 +33,7 @@ class QueueBeanstalkdJobTest extends PHPUnit_Framework_TestCase
     public function testDeleteRemovesTheJobFromBeanstalkd()
     {
         $job = $this->getJob();
-        $job->getPool()->shouldReceive('delete')->once()->with($job->getJob());
+        $job->getJob()->shouldReceive('delete')->once()->andReturn(true);
 
         $job->delete();
     }
@@ -40,7 +41,7 @@ class QueueBeanstalkdJobTest extends PHPUnit_Framework_TestCase
     public function testReleaseProperlyReleasesJobOntoBeanstalkd()
     {
         $job = $this->getJob();
-        $job->getPool()->shouldReceive('release')->once()->with($job->getJob(), Pheanstalk\Pheanstalk::DEFAULT_PRIORITY, 0);
+        $job->getJob()->shouldReceive('release')->once()->with(0, BeanstalkdConnector::DEFAULT_PRIORITY);
 
         $job->release();
     }
@@ -48,7 +49,7 @@ class QueueBeanstalkdJobTest extends PHPUnit_Framework_TestCase
     public function testBuryProperlyBuryTheJobFromBeanstalkd()
     {
         $job = $this->getJob();
-        $job->getPool()->shouldReceive('bury')->once()->with($job->getJob());
+        $job->getJob()->shouldReceive('bury')->once();
 
         $job->bury();
     }

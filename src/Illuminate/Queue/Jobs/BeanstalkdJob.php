@@ -4,8 +4,8 @@ namespace Illuminate\Queue\Jobs;
 
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Queue\Job as JobContract;
-use Beanstalk\Job;
-use Beanstalk\Pool;
+use Beanstalk\Job as BeanstalkJob;
+use Beanstalk\Pool as BeanstalkPool;
 use Illuminate\Queue\Connectors\BeanstalkdConnector;
 
 class BeanstalkdJob extends Job implements JobContract
@@ -34,8 +34,8 @@ class BeanstalkdJob extends Job implements JobContract
      * @return void
      */
     public function __construct(Container $container,
-                                Pool $pool,
-                                Job $job,
+                                BeanstalkPool $pool,
+                                BeanstalkJob $job,
                                 $queue)
     {
         $this->job = $job;
@@ -73,7 +73,7 @@ class BeanstalkdJob extends Job implements JobContract
     {
         parent::delete();
 
-        $this->job->delete();
+        return $this->job->delete();
     }
 
     /**
