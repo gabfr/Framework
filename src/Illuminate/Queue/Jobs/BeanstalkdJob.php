@@ -61,7 +61,11 @@ class BeanstalkdJob extends Job implements JobContract
      */
     public function getRawBody()
     {
-        return $this->job->getMessage();
+        if ( is_object( $msg = $this->job->getMessage() ) ) {
+            $msg = json_encode($msg);
+        }
+        
+        return $msg;
     }
 
     /**
