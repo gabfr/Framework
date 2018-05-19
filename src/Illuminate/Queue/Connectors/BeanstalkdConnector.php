@@ -2,9 +2,7 @@
 
 namespace Illuminate\Queue\Connectors;
 
-use Pheanstalk\Pheanstalk;
 use Illuminate\Support\Arr;
-use Pheanstalk\PheanstalkInterface;
 use Illuminate\Queue\BeanstalkdQueue;
 use Beanstalk\Pool;
 
