@@ -118,7 +118,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     protected function watchOnly($queue)
     {
-        $this->pool->watch($queue);
+        $this->pool->watchTube($queue);
 
         $allTubes = $this->pool->listTubes();
         foreach ($allTubes as $tubeQueue) {
